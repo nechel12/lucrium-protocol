@@ -22,7 +22,7 @@ lucrium-protocol/
 ├── packages/
 │   ├── lucrium-protocol/      # модели протокола (envelope, команды, события, state)
 │   └── lucrium-plugin-sdk/    # SDK плагинов + примеры + документация
-├── examples/                  # сквозные примеры (см. packages/lucrium-plugin-sdk)
+├── examples/                  # рабочие примеры плагинов (auto-reply, webhook-forwarder)
 ├── docs/                      # документация протокола
 └── .github/workflows/         # CI: ruff + mypy + pytest (3.12 / 3.14)
 ```

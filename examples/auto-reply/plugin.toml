@@ -1,0 +1,14 @@
+[plugin]
+id = "auto-reply"
+name = "Автоответчик"
+version = "0.1.0"
+api = "1"
+entry = "auto_reply"
+description = "Отвечает на входящее сообщение покупателя шаблоном из настроек (с паузой на чат)."
+
+[config]
+schema = "config_schema.json"
+
+[permissions]
+accounts = ["funpay", "playerok", "ggsel"]
+network = false

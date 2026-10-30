@@ -1,0 +1,62 @@
+[project]
+name = "lucrium-workspace"
+version = "0.0.0"
+description = "Lucrium Protocol — workspace (lucrium-protocol + lucrium-plugin-sdk)"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["packages/lucrium-protocol/src", "packages/lucrium-plugin-sdk/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "RUF001",  # неоднозначные символы: кодировка проекта — UTF-8, тексты на русском
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"packages/*/tests/*" = ["S101"]
+"examples/*" = ["T201"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+# worker/plugin runtime — Linux (VPS); unix-сокеты в транспорте SDK
+platform = "linux"
+mypy_path = [
+    "packages/lucrium-protocol/src",
+    "packages/lucrium-plugin-sdk/src",
+]
+exclude = ["build/", "dist/", ".venv/", "packages/.*/tests/", "examples/.*/tests/"]
+
+[[tool.mypy.overrides]]
+module = ["jwt.*", "tests.*"]
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["packages", "examples"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"
+filterwarnings = ["error"]

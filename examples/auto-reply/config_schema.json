@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Автоответчик",
+  "description": "Шаблон ответа и защита от повторных сообщений. Панель рендерит эту форму автоматически.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reply_text"],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Включён",
+      "description": "Выключите, чтобы плагин не отвечал, не удаляя настройки.",
+      "default": true
+    },
+    "reply_text": {
+      "type": "string",
+      "title": "Текст ответа",
+      "description": "Отправляется покупателю на первое сообщение в чате.",
+      "default": "Здравствуйте! Я на связи и отвечу в ближайшее время.",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "cooldown_seconds": {
+      "type": "integer",
+      "title": "Пауза на чат, сек",
+      "description": "Не отвечать повторно в тот же чат чаще, чем раз в N секунд.",
+      "default": 300,
+      "minimum": 0,
+      "maximum": 86400
+    },
+    "skip_if_contains": {
+      "type": "string",
+      "title": "Не отвечать, если в сообщении есть",
+      "description": "Подстрока (без учёта регистра). Пусто — отвечать всегда.",
+      "default": "",
+      "maxLength": 200
+    }
+  }
+}

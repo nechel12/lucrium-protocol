@@ -1,0 +1,14 @@
+[plugin]
+id = "webhook-forwarder"
+name = "Webhook-форвардер"
+version = "0.1.0"
+api = "1"
+entry = "webhook_forwarder"
+description = "Отправляет события площадок во внешний HTTP-webhook (с фильтром по типам)."
+
+[config]
+schema = "config_schema.json"
+
+[permissions]
+accounts = ["funpay", "playerok", "ggsel"]
+network = true
