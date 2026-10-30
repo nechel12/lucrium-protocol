@@ -87,7 +87,7 @@ from .envelope import (
     response_error,
     response_result,
 )
-from .errors import MAX_ERROR_MESSAGE, ErrorCode, ErrorObject, ProtocolError
+from .errors import MAX_ERROR_DATA_BYTES, MAX_ERROR_MESSAGE, ErrorCode, ErrorObject, ProtocolError
 from .events import (
     EVENT_DATA,
     CommandResult,
@@ -174,6 +174,7 @@ __all__ = [
     "COMMAND_RESULTS",
     "EVENT_DATA",
     "MANIFEST_FILENAME",
+    "MAX_ERROR_DATA_BYTES",
     "MAX_ERROR_MESSAGE",
     "PLUGIN_API_VERSION",
     "PROTOCOL_VERSION",

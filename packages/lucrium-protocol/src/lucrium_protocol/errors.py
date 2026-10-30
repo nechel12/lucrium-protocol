@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from enum import StrEnum
 from typing import Any
 
@@ -9,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MAX_ERROR_MESSAGE = 2000
 """Ограничение ``ErrorObject.message``/``RpcError.message`` на проводе."""
+MAX_ERROR_DATA_BYTES = 64 * 1024
+"""Максимальный сериализованный размер ``ErrorObject.data``."""
 
 
 class ErrorCode(StrEnum):
@@ -40,6 +43,19 @@ class ErrorObject(BaseModel):
     @classmethod
     def _truncate_message(cls, value: object) -> str:
         return (str(value) or "error")[:MAX_ERROR_MESSAGE]
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _limit_data(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        try:
+            encoded = json.dumps(value, ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"error data must be JSON-serializable: {exc}") from exc
+        if len(encoded.encode("utf-8")) > MAX_ERROR_DATA_BYTES:
+            return {"truncated": True}
+        return value
 
     def __str__(self) -> str:
         return f"{self.code}: {self.message}"
@@ -74,6 +90,7 @@ class ProtocolError(Exception):
 
 
 __all__ = [
+    "MAX_ERROR_DATA_BYTES",
     "MAX_ERROR_MESSAGE",
     "ErrorCode",
     "ErrorObject",

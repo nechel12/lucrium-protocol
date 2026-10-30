@@ -229,6 +229,15 @@ def test_error_response_truncates_long_message() -> None:
     assert len(response.payload.error.message) <= 2000
 
 
+def test_error_data_is_truncated() -> None:
+    response = build_error_response(
+        "some-id",
+        ProtocolError(ErrorCode.INTERNAL, "boom", {"blob": "x" * 70_000}),
+    )
+    assert response.payload.error is not None
+    assert response.payload.error.data == {"truncated": True}
+
+
 def test_proxy_ipv6_url_is_bracketed() -> None:
     proxy = ProxyConfig(host="::1", port=1080, username="u", password="p")
     assert proxy.to_url() == "http://u:p@[::1]:1080"
