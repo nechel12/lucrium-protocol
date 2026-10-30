@@ -15,6 +15,7 @@ from lucrium_protocol import (
     AccountInput,
     AccountRef,
     AddAccountParams,
+    CallClientParams,
     Command,
     ErrorCode,
     Event,
@@ -79,6 +80,9 @@ SAMPLE_PARAMS: dict[Command, BaseModel] = {
     Command.REMOVE_PLUGIN: RemovePluginParams(plugin_id="p1"),
     Command.SET_PLUGIN_CONFIG: SetPluginConfigParams(plugin_id="p1", config={"a": 1}),
     Command.GET_PLUGIN_SCHEMA: GetPluginSchemaParams(plugin_id="p1"),
+    Command.CALL_CLIENT: CallClientParams(
+        session_id="acc-1", client_method="lots.list_self", params={"subcategory_id": 1}
+    ),
     Command.EXPORT_STATE: ExportStateParams(passphrase=SecretStr("correct-horse-battery")),
     Command.IMPORT_STATE: ImportStateParams(
         blob_b64="UEsDBA==",

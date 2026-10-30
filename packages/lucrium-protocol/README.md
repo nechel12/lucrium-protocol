@@ -18,7 +18,7 @@ socket.send(request.model_dump_json())
 | Модуль | Назначение |
 |---|---|
 | `envelope` | `{type, id, ts, payload}`: `Request` / `Response` / `Event`, конструкторы и парсеры |
-| `commands` | 17 команд панели + реестр `result`-моделей |
+| `commands` | 18 команд панели + реестр `result`-моделей |
 | `events` | события воркера: `state`, `status`, `event` (HubEvent), `plugin_log`, `plugin_error`, `command_result` |
 | `state` | `StateSnapshot`, `AccountState`, `PluginState`, `WorkerStatus` |
 | `types` | `Platform`, `Capability`, `EventKind`, `ProxyConfig`, `AccountCredentials` |

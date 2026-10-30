@@ -122,6 +122,7 @@
 | `remove_plugin` | `plugin_id`, `purge_data` | `PluginRef` | удалить плагин (и его KV) |
 | `set_plugin_config` | `plugin_id`, `config` | `PluginConfigResult` | конфиг из JSON-схемы; воркер валидирует и перезапускает |
 | `get_plugin_schema` | `plugin_id` | `GetPluginSchemaResult` | JSON-схема конфига + текущие значения — панель рендерит форму |
+| `call_client` | `session_id`, `client_method`, `params` | `CallClientResult` | вызов метода клиента aiosellers (лоты/товары, §9) |
 | `export_state` | `passphrase`, `include_history` | `ExportStateResult` | зашифрованный дамп (`.lcs`) |
 | `import_state` | `blob_b64`, `passphrase`, `mode` | `ImportStateResult` | `merge` или `replace` |
 | `get_logs` | `scope`, `plugin_id?`, `level?`, `limit`, `cursor?` | `GetLogsResult` | журнал воркера/плагина с пагинацией |

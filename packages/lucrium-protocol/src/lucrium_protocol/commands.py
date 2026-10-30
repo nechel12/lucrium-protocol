@@ -38,6 +38,7 @@ class Command(StrEnum):
     REMOVE_PLUGIN = "remove_plugin"
     SET_PLUGIN_CONFIG = "set_plugin_config"
     GET_PLUGIN_SCHEMA = "get_plugin_schema"
+    CALL_CLIENT = "call_client"
     EXPORT_STATE = "export_state"
     IMPORT_STATE = "import_state"
     GET_LOGS = "get_logs"
@@ -178,6 +179,26 @@ class GetPluginSchemaParams(BaseModel):
     plugin_id: str = Field(min_length=1, max_length=200)
 
 
+class CallClientParams(BaseModel):
+    """Вызов метода клиента aiosellers из панели (лоты/товары, §9).
+
+    ``client_method`` — dotted-путь (``lots.list_self``, ``items.update``);
+    ``params`` — именованные аргументы метода. Воркер нормализует результат
+    в JSON. Панель аутентифицирована pairing-токеном — это доверенный клиент.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["call_client"] = "call_client"
+    session_id: str = Field(min_length=1, max_length=64)
+    client_method: str = Field(
+        min_length=1,
+        max_length=200,
+        pattern=r"^[a-zA-Z_][\w]*(\.[a-zA-Z_][\w]*)*$",
+    )
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
 class ExportStateParams(BaseModel):
     """Экспорт всего состояния в один файл, зашифрованный паролем пользователя (спека §4)."""
 
@@ -269,6 +290,12 @@ class GetPluginSchemaResult(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class CallClientResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    data: Any | None = None
+
+
 class ExportStateResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -346,6 +373,7 @@ COMMAND_PARAMS: dict[str, type[BaseModel]] = {
     Command.REMOVE_PLUGIN: RemovePluginParams,
     Command.SET_PLUGIN_CONFIG: SetPluginConfigParams,
     Command.GET_PLUGIN_SCHEMA: GetPluginSchemaParams,
+    Command.CALL_CLIENT: CallClientParams,
     Command.EXPORT_STATE: ExportStateParams,
     Command.IMPORT_STATE: ImportStateParams,
     Command.GET_LOGS: GetLogsParams,
@@ -367,6 +395,7 @@ COMMAND_RESULTS: dict[str, type[BaseModel]] = {
     Command.REMOVE_PLUGIN: PluginRef,
     Command.SET_PLUGIN_CONFIG: PluginConfigResult,
     Command.GET_PLUGIN_SCHEMA: GetPluginSchemaResult,
+    Command.CALL_CLIENT: CallClientResult,
     Command.EXPORT_STATE: ExportStateResult,
     Command.IMPORT_STATE: ImportStateResult,
     Command.GET_LOGS: GetLogsResult,
@@ -388,6 +417,7 @@ RequestPayloadT = Annotated[
     | RemovePluginParams
     | SetPluginConfigParams
     | GetPluginSchemaParams
+    | CallClientParams
     | ExportStateParams
     | ImportStateParams
     | GetLogsParams
@@ -437,6 +467,8 @@ __all__ = [
     "MAX_RAW_BYTES",
     "AccountRef",
     "AddAccountParams",
+    "CallClientParams",
+    "CallClientResult",
     "Command",
     "ExportStateParams",
     "ExportStateResult",
