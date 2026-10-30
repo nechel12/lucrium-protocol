@@ -16,8 +16,18 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from .errors import ErrorCode, ProtocolError
+from .events import HubEvent
 from .state import PluginState, StateWithCredentials
-from .types import AccountCredentials, AccountInput, LogEntry, LogLevel, ProxyConfig, SessionStatus, to_wire
+from .types import (
+    AccountCredentials,
+    AccountInput,
+    EventKind,
+    LogEntry,
+    LogLevel,
+    ProxyConfig,
+    SessionStatus,
+    to_wire,
+)
 
 # максимум на поля с base64 (архив zip, дамп состояния): ~48 МБ сырого на 64 М символов
 MAX_B64_CHARS = 64 * 1024 * 1024
@@ -42,6 +52,7 @@ class Command(StrEnum):
     EXPORT_STATE = "export_state"
     IMPORT_STATE = "import_state"
     GET_LOGS = "get_logs"
+    GET_EVENTS = "get_events"
     ROTATE_TOKEN = "rotate_token"
     RESTART = "restart"
     PING = "ping"
@@ -235,6 +246,22 @@ class GetLogsParams(BaseModel):
         return self
 
 
+class GetEventsParams(BaseModel):
+    """История событий площадок из SQLite (ретеншн, спека §8).
+
+    ``cursor`` — id последнего полученного события; панель запрашивает
+    ``id > cursor`` для подгрузки вперёд.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["get_events"] = "get_events"
+    session_id: str | None = Field(default=None, max_length=64)
+    kind: EventKind | None = None
+    limit: int = Field(default=100, ge=1, le=1000)
+    cursor: int | None = Field(default=None, ge=0)
+
+
 class RotateTokenParams(BaseModel):
     """Новый pairing-токен; старый отзывается. Панель показывает токен один раз."""
 
@@ -294,6 +321,13 @@ class CallClientResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     data: Any | None = None
+
+
+class GetEventsResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    events: list[HubEvent] = Field(default_factory=list)
+    next_cursor: int | None = Field(default=None, description="передать как cursor в следующем запросе")
 
 
 class ExportStateResult(BaseModel):
@@ -377,6 +411,7 @@ COMMAND_PARAMS: dict[str, type[BaseModel]] = {
     Command.EXPORT_STATE: ExportStateParams,
     Command.IMPORT_STATE: ImportStateParams,
     Command.GET_LOGS: GetLogsParams,
+    Command.GET_EVENTS: GetEventsParams,
     Command.ROTATE_TOKEN: RotateTokenParams,
     Command.RESTART: RestartParams,
     Command.PING: PingParams,
@@ -399,6 +434,7 @@ COMMAND_RESULTS: dict[str, type[BaseModel]] = {
     Command.EXPORT_STATE: ExportStateResult,
     Command.IMPORT_STATE: ImportStateResult,
     Command.GET_LOGS: GetLogsResult,
+    Command.GET_EVENTS: GetEventsResult,
     Command.ROTATE_TOKEN: RotateTokenResult,
     Command.RESTART: RestartResult,
     Command.PING: PingResult,
@@ -421,6 +457,7 @@ RequestPayloadT = Annotated[
     | ExportStateParams
     | ImportStateParams
     | GetLogsParams
+    | GetEventsParams
     | RotateTokenParams
     | RestartParams
     | PingParams,
@@ -472,6 +509,8 @@ __all__ = [
     "Command",
     "ExportStateParams",
     "ExportStateResult",
+    "GetEventsParams",
+    "GetEventsResult",
     "GetLogsParams",
     "GetLogsResult",
     "GetPluginSchemaParams",

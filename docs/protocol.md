@@ -126,6 +126,7 @@
 | `export_state` | `passphrase`, `include_history` | `ExportStateResult` | зашифрованный дамп (`.lcs`) |
 | `import_state` | `blob_b64`, `passphrase`, `mode` | `ImportStateResult` | `merge` или `replace` |
 | `get_logs` | `scope`, `plugin_id?`, `level?`, `limit`, `cursor?` | `GetLogsResult` | журнал воркера/плагина с пагинацией |
+| `get_events` | `session_id?`, `kind?`, `limit`, `cursor?` | `GetEventsResult` | история событий площадок (ретеншн, §8) |
 | `rotate_token` | — | `RotateTokenResult` | новый pairing-токен |
 | `restart` | `scope` (`worker`/`sessions`), `delay_seconds` | `RestartResult` | отложенный рестарт |
 | `ping` | `nonce?` | `PingResult` | heartbeat: эхо nonce, `server_time`, `revision` |
