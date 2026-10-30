@@ -50,6 +50,7 @@ from .commands import (
     StopSessionParams,
     UpdateAccountParams,
     UpdatePluginParams,
+    decode_b64,
     decode_result,
     encode_result,
 )
@@ -272,6 +273,7 @@ __all__ = [
     "build_request",
     "build_response",
     "capabilities_from_names",
+    "decode_b64",
     "decode_event_data",
     "decode_license",
     "decode_license_unverified",
