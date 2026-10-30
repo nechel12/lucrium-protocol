@@ -15,6 +15,8 @@ from typing import Any
 from lucrium_protocol.events import HubEvent
 from lucrium_protocol.types import EventKind, Platform
 
+_MISSING = object()
+
 
 @dataclass(frozen=True, slots=True)
 class PluginEvent:
@@ -46,10 +48,12 @@ class PluginEvent:
         current: Any = self.payload
         for part in path.split("."):
             if isinstance(current, Mapping):
-                current = current.get(part)
+                current = current.get(part, _MISSING)
+                if current is _MISSING:
+                    return default
             else:
                 return default
-        return default if current is None else current
+        return default if current is _MISSING else current
 
     def section(self, name: str) -> dict[str, Any]:
         """Подсловарь payload'а (``{"chat": …}`` → ``event.section("chat")``)."""

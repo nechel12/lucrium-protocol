@@ -133,6 +133,9 @@ class HttpView(Protocol):
 # --- конфиг ------------------------------------------------------------------
 
 
+_MISSING = object()
+
+
 class _PathView:
     """Доступ к вложенным ключам по точечному пути: ``cfg.get("ai.model")``."""
 
@@ -144,18 +147,20 @@ class _PathView:
         current = data
         for part in parts:
             if isinstance(current, Mapping):
-                current = current.get(part)
+                current = current.get(part, _MISSING)
+                if current is _MISSING:
+                    return _MISSING
             else:
-                return None
+                return _MISSING
         return current
 
     def get(self, path: str, default: Any = None) -> Any:
         value = self._dig(self._data, path.split("."))
-        return default if value is None else value
+        return default if value is _MISSING else value
 
     def require(self, path: str) -> Any:
         value = self._dig(self._data, path.split("."))
-        if value is None:
+        if value is _MISSING or value is None:
             raise KeyError(f"config key {path!r} is missing")
         return value
 
@@ -165,12 +170,13 @@ class ConfigView(_PathView):
 
     def __getitem__(self, key: str) -> Any:
         value = self._dig(self._data, key.split("."))
-        if value is None:
+        if value is _MISSING or value is None:
             raise KeyError(key)
         return value
 
     def __contains__(self, key: str) -> bool:
-        return self._dig(self._data, key.split(".")) is not None
+        value = self._dig(self._data, key.split("."))
+        return value is not _MISSING and value is not None
 
     @property
     def data(self) -> dict[str, Any]:
