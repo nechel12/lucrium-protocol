@@ -37,6 +37,7 @@ class Command(StrEnum):
     UPDATE_PLUGIN = "update_plugin"
     REMOVE_PLUGIN = "remove_plugin"
     SET_PLUGIN_CONFIG = "set_plugin_config"
+    GET_PLUGIN_SCHEMA = "get_plugin_schema"
     EXPORT_STATE = "export_state"
     IMPORT_STATE = "import_state"
     GET_LOGS = "get_logs"
@@ -168,6 +169,15 @@ class SetPluginConfigParams(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class GetPluginSchemaParams(BaseModel):
+    """Схема конфига плагина — панель рендерит из неё форму автоматически (§6.1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["get_plugin_schema"] = "get_plugin_schema"
+    plugin_id: str = Field(min_length=1, max_length=200)
+
+
 class ExportStateParams(BaseModel):
     """Экспорт всего состояния в один файл, зашифрованный паролем пользователя (спека §4)."""
 
@@ -249,6 +259,16 @@ class PluginConfigResult(BaseModel):
     restart_triggered: bool = Field(description="плагин перезапущен с новым конфигом")
 
 
+class GetPluginSchemaResult(BaseModel):
+    """Схема конфига + текущие значения (панель рендерит форму и префиллит её)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    plugin_id: str
+    config_schema: dict[str, Any] | None = Field(default=None, description="JSON Schema или None")
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
 class ExportStateResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -325,6 +345,7 @@ COMMAND_PARAMS: dict[str, type[BaseModel]] = {
     Command.UPDATE_PLUGIN: UpdatePluginParams,
     Command.REMOVE_PLUGIN: RemovePluginParams,
     Command.SET_PLUGIN_CONFIG: SetPluginConfigParams,
+    Command.GET_PLUGIN_SCHEMA: GetPluginSchemaParams,
     Command.EXPORT_STATE: ExportStateParams,
     Command.IMPORT_STATE: ImportStateParams,
     Command.GET_LOGS: GetLogsParams,
@@ -345,6 +366,7 @@ COMMAND_RESULTS: dict[str, type[BaseModel]] = {
     Command.UPDATE_PLUGIN: PluginState,
     Command.REMOVE_PLUGIN: PluginRef,
     Command.SET_PLUGIN_CONFIG: PluginConfigResult,
+    Command.GET_PLUGIN_SCHEMA: GetPluginSchemaResult,
     Command.EXPORT_STATE: ExportStateResult,
     Command.IMPORT_STATE: ImportStateResult,
     Command.GET_LOGS: GetLogsResult,
@@ -365,6 +387,7 @@ RequestPayloadT = Annotated[
     | UpdatePluginParams
     | RemovePluginParams
     | SetPluginConfigParams
+    | GetPluginSchemaParams
     | ExportStateParams
     | ImportStateParams
     | GetLogsParams
@@ -419,6 +442,8 @@ __all__ = [
     "ExportStateResult",
     "GetLogsParams",
     "GetLogsResult",
+    "GetPluginSchemaParams",
+    "GetPluginSchemaResult",
     "GetStateParams",
     "ImportMode",
     "ImportStateParams",

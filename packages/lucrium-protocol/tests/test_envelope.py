@@ -20,6 +20,7 @@ from lucrium_protocol import (
     Event,
     ExportStateParams,
     GetLogsParams,
+    GetPluginSchemaParams,
     GetStateParams,
     ImportStateParams,
     InstallPluginParams,
@@ -77,6 +78,7 @@ SAMPLE_PARAMS: dict[Command, BaseModel] = {
     Command.UPDATE_PLUGIN: UpdatePluginParams(plugin_id="p1", archive_b64="UEsDBA=="),
     Command.REMOVE_PLUGIN: RemovePluginParams(plugin_id="p1"),
     Command.SET_PLUGIN_CONFIG: SetPluginConfigParams(plugin_id="p1", config={"a": 1}),
+    Command.GET_PLUGIN_SCHEMA: GetPluginSchemaParams(plugin_id="p1"),
     Command.EXPORT_STATE: ExportStateParams(passphrase=SecretStr("correct-horse-battery")),
     Command.IMPORT_STATE: ImportStateParams(
         blob_b64="UEsDBA==",
