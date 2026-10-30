@@ -32,6 +32,7 @@ from lucrium_protocol import (
     Platform,
     PluginRef,
     ProtocolError,
+    ProxyConfig,
     RemoveAccountParams,
     RemovePluginParams,
     Request,
@@ -220,6 +221,22 @@ def test_error_response_wraps_generic_exception() -> None:
     assert response.payload.error is not None
     assert response.payload.error.code is ErrorCode.INTERNAL
     assert response.id == "some-id"
+
+
+def test_error_response_truncates_long_message() -> None:
+    response = build_error_response("some-id", RuntimeError("x" * 5000))
+    assert response.payload.error is not None
+    assert len(response.payload.error.message) <= 2000
+
+
+def test_proxy_ipv6_url_is_bracketed() -> None:
+    proxy = ProxyConfig(host="::1", port=1080, username="u", password="p")
+    assert proxy.to_url() == "http://u:p@[::1]:1080"
+
+
+def test_ggsel_seller_id_must_be_numeric() -> None:
+    with pytest.raises(ValidationError):
+        AccountCredentials(platform=Platform.GGSEL, api_key=SecretStr("k"), seller_id="seller-1")
 
 
 def test_response_payload_requires_exactly_one() -> None:

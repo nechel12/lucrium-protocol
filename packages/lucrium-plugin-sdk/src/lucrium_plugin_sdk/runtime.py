@@ -157,6 +157,9 @@ class PluginRuntime:
             return
 
     async def _start(self, params: StartParams) -> None:
+        # Конфиг приходит именно в plugin.start (панель → воркер → плагин);
+        # конструктор задаёт только тестовое/начальное значение.
+        self._config = ConfigView(params.config)
         if self._entry.on_start is None:
             return
         ctx = self.make_context()

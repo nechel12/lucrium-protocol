@@ -92,6 +92,27 @@ async def test_full_lifecycle(
     assert len(calls["stop"]) == 1
 
 
+async def test_start_config_from_host_is_used(
+    manifest: PluginManifest,
+    module_factory: ModuleFactory,
+) -> None:
+    """Конфиг из plugin.start должен попадать в ctx.config, даже если конструктор пуст."""
+    entry, calls = _entry_and_calls(module_factory)
+    host = FakeHost()
+    runtime = PluginRuntime(manifest, entry, host)  # type: ignore[arg-type]
+    task = asyncio.create_task(runtime.run(), name="runtime-config")
+    try:
+        host.send_request(PLUGIN_START, {"plugin_id": manifest.id, "config": {"greeting": "Привет"}})
+        await host.wait_for_response()
+        assert calls["start"][0].config.data == {"greeting": "Привет"}
+        host.send_request(PLUGIN_STOP, {"reason": "test"})
+        await host.wait_for_response()
+        await asyncio.wait_for(task, timeout=5)
+    finally:
+        if not task.done():
+            await _drain(task)
+
+
 async def test_event_as_notification(
     manifest: PluginManifest,
     hub_event: HubEvent,

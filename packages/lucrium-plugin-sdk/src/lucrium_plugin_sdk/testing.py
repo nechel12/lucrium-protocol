@@ -367,7 +367,7 @@ async def run_lifecycle(
         try:
             await entry.on_start(context_for(None))
             result.started = True
-        except BaseException as exc:
+        except Exception as exc:
             result.start_error = exc
 
     if entry.on_event is not None:
@@ -375,14 +375,14 @@ async def run_lifecycle(
             event = raw_event if isinstance(raw_event, PluginEvent) else PluginEvent.from_hub(raw_event)
             try:
                 await entry.on_event(event, context_for(event.session_id))
-            except BaseException as exc:
+            except Exception as exc:
                 result.event_errors.append(exc)
 
     if entry.on_stop is not None:
         try:
             await entry.on_stop(context_for(None))
             result.stopped = True
-        except BaseException as exc:
+        except Exception as exc:
             result.stop_error = exc
 
     return result

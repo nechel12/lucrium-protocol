@@ -95,8 +95,8 @@ class JsonRpcClient:
         request_id = next(self._ids)
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
-        await self._send(RpcRequest(id=request_id, method=method, params=params))
         try:
+            await self._send(RpcRequest(id=request_id, method=method, params=params))
             return await asyncio.wait_for(future, timeout)
         except TimeoutError as exc:
             self._pending.pop(request_id, None)
@@ -104,6 +104,8 @@ class JsonRpcClient:
             raise TransportError(f"rpc timeout waiting for {method!r} after {timeout}s") from exc
         except Exception:
             self._pending.pop(request_id, None)
+            if not future.done():
+                future.cancel()
             raise
 
     async def notify(self, method: str, params: dict[str, Any] | None = None) -> None:
@@ -145,8 +147,9 @@ class JsonRpcClient:
         with contextlib.suppress(OSError):
             await self._writer.wait_closed()
         self._fail_pending(TransportError("connection closed"))
-        if self._inbox.empty():
-            self._inbox.put_nowait(None)
+        # Ставим sentinel всегда: если в inbox остались сообщения, consumer
+        # дочитает их и затем получит TransportError, а не зависнет.
+        self._inbox.put_nowait(None)
 
     async def _send(self, message: RpcRequest | RpcNotification | RpcResponse) -> None:
         if self._closed:

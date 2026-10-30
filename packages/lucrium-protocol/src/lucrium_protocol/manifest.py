@@ -35,7 +35,7 @@ from .version import SUPPORTED_PLUGIN_API_VERSIONS
 
 MANIFEST_FILENAME = "plugin.toml"
 
-_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
+_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,63}$")
 _SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 _MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
@@ -66,7 +66,7 @@ class ManifestPlugin(BaseModel):
     @classmethod
     def _valid_id(cls, v: str) -> str:
         if not _ID_RE.match(v):
-            raise ValueError("id must match ^[a-z0-9][a-z0-9_-]{1,64}$ (lowercase, digits, '-', '_')")
+            raise ValueError("id must match ^[a-z0-9][a-z0-9_-]{2,63}$ (3-64 chars, lowercase, digits, '-', '_')")
         return v
 
     @field_validator("version")

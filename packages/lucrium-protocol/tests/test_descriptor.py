@@ -136,7 +136,11 @@ def test_signing_payload_is_canonical() -> None:
     a = artifact_signing_payload("p", "1.0.0", VALID_UNTIL, b"data")
     b = artifact_signing_payload("p", "1.0.0", VALID_UNTIL, b"data")
     assert a == b
-    # заголовок: plugin_id \n version \n valid_until(Z) \n
     deadline = VALID_UNTIL.astimezone(UTC).isoformat().replace("+00:00", "Z")
-    assert a.startswith(f"p\n1.0.0\n{deadline}\n".encode())
+
+    def field(value: str) -> bytes:
+        raw = value.encode()
+        return len(raw).to_bytes(4, "big") + raw
+
+    assert a.startswith(field("p") + field("1.0.0") + field(deadline))
     assert a.endswith(b"data")

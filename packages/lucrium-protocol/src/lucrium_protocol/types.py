@@ -138,7 +138,8 @@ class ProxyConfig(BaseModel):
             from urllib.parse import quote
 
             auth = f"{quote(self.username, safe='')}:{quote(password, safe='')}@"
-        return f"{self.scheme}://{auth}{self.host}:{self.port}"
+        host = f"[{self.host}]" if ":" in self.host and not self.host.startswith("[") else self.host
+        return f"{self.scheme}://{auth}{host}:{self.port}"
 
     @classmethod
     def from_url(cls, url: str) -> ProxyConfig:
@@ -193,6 +194,8 @@ class AccountCredentials(BaseModel):
                 raise ValueError("ggsel requires api_key")
             if not self.seller_id or not self.seller_id.strip():
                 raise ValueError("ggsel requires seller_id")
+            if not self.seller_id.strip().isdigit():
+                raise ValueError("ggsel seller_id must be numeric")
             self._reject(self.golden_key, self.access_token)
         return self
 
@@ -200,9 +203,9 @@ class AccountCredentials(BaseModel):
     def _reject(*values: object) -> None:
         for value in values:
             if isinstance(value, SecretStr):
-                if value.get_secret_value():
+                if value.get_secret_value().strip():
                     raise ValueError("credentials for another platform must not be set")
-            elif value is not None:
+            elif value is not None and str(value).strip():
                 raise ValueError("credentials for another platform must not be set")
 
     def secret_value(self) -> str:

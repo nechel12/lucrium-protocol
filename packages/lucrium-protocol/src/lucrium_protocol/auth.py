@@ -41,7 +41,8 @@ def is_valid_pairing_token_format(token: str) -> bool:
 
 def pairing_tokens_equal(a: str, b: str) -> bool:
     """Сравнение токенов за константное время (защита от timing-атак)."""
-    return secrets.compare_digest(a, b)
+    # compare_digest для str падает на non-ASCII; сравниваем UTF-8 байты.
+    return secrets.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
 
 
 def auth_header_value(token: str) -> str:

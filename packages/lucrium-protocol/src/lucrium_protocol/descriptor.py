@@ -103,6 +103,11 @@ class DeliveredArtifact(BaseModel):
     valid_until: datetime = Field(description="срок действия выдачи (UTC)")
     signature: str = Field(description="Ed25519, base64; снимается при верификации")
 
+    @field_validator("valid_until")
+    @classmethod
+    def _valid_until_utc(cls, value: datetime) -> datetime:
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
     @property
     def artifact_bytes(self) -> bytes:
         return base64.b64decode(self.artifact_b64, validate=True)
@@ -120,8 +125,13 @@ def artifact_signing_payload(
     (что верифицирует) — менять нельзя без подъёма версии протокола.
     """
     deadline = valid_until.astimezone(UTC).isoformat().replace("+00:00", "Z")
-    header = f"{plugin_id}\n{version}\n{deadline}\n".encode()
-    return header + artifact
+
+    def field(value: str) -> bytes:
+        raw = value.encode("utf-8")
+        return len(raw).to_bytes(4, "big") + raw
+
+    # Length-prefixed поля исключают неоднозначность при newline в id/version.
+    return field(plugin_id) + field(version) + field(deadline) + artifact
 
 
 def verify_delivered_artifact(descriptor: PluginDescriptor, delivered: DeliveredArtifact) -> bytes:

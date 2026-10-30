@@ -94,8 +94,16 @@ def decode_license(
     token: str,
     public_key: Any,
     algorithms: tuple[str, ...] = (DEFAULT_ALGORITHM,),
+    *,
+    expected_issuer: str | None = ISSUER,
+    now: datetime | None = None,
+    grace_seconds: int = 0,
 ) -> LicenseClaims:
-    """Верифицирует подпись и возвращает claims; при любой ошибке — :class:`LicenseError`."""
+    """Верифицирует подпись, издателя и срок; при любой ошибке — :class:`LicenseError`.
+
+    ``grace_seconds`` — допустимое окно после ``expires_at`` (offline-grace);
+    по умолчанию 0, то есть просроченная лицензия отклоняется.
+    """
     try:
         payload: dict[str, Any] = jwt.decode(
             token,
@@ -103,11 +111,19 @@ def decode_license(
             algorithms=list(algorithms),
             options={"require": ["plugin_id", "licensee", "issued_at", "jti", "iss"]},
         )
-        return LicenseClaims.model_validate(payload)
+        claims = LicenseClaims.model_validate(payload)
     except InvalidTokenError as exc:
         raise LicenseError(f"invalid license: {exc}") from exc
-    except ValueError as exc:  # невалидный ключ
-        raise LicenseError(f"invalid verification key: {exc}") from exc
+    except ValueError as exc:  # невалидный ключ/claims
+        raise LicenseError(f"invalid license: {exc}") from exc
+
+    if expected_issuer is not None and claims.iss != expected_issuer:
+        raise LicenseError(f"unexpected license issuer: {claims.iss!r}")
+    if claims.expires_at is not None:
+        current = now or datetime.now(UTC)
+        if int(current.timestamp()) > claims.expires_at + max(0, grace_seconds):
+            raise LicenseError(f"license expired at {claims.expires_at_dt().isoformat()}")  # type: ignore[union-attr]
+    return claims
 
 
 def decode_license_unverified(token: str) -> LicenseClaims:
@@ -133,6 +149,11 @@ class RevokedLicense(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
     revoked_at: datetime
 
+    @field_validator("revoked_at")
+    @classmethod
+    def _revoked_at_utc(cls, value: datetime) -> datetime:
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
 
 class RevocationList(BaseModel):
     """Подписанный ревок-лист магазина (публикуется раз в сутки)."""
@@ -142,6 +163,11 @@ class RevocationList(BaseModel):
     issued_at: datetime
     revocations: list[RevokedLicense] = Field(default_factory=list)
     signature: str | None = Field(default=None, description="Ed25519, base64; снимается при проверке")
+
+    @field_validator("issued_at")
+    @classmethod
+    def _issued_at_utc(cls, value: datetime) -> datetime:
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
     def is_revoked(self, jti: str) -> bool:
         return any(entry.jti == jti for entry in self.revocations)
@@ -185,14 +211,25 @@ def sign_revocation_list(revocations: RevocationList, private_key: Any) -> str:
     return signature
 
 
-def verify_revocation_list(revocations: RevocationList, public_key: Any) -> None:
-    """Проверяет подпись ревок-листа; :class:`LicenseError`, если подписи нет или она неверна."""
+def verify_revocation_list(
+    revocations: RevocationList,
+    public_key: Any,
+    *,
+    now: datetime | None = None,
+    max_age_seconds: int | None = None,
+) -> None:
+    """Проверяет подпись (и, опционально, свежесть) ревок-листа."""
     import base64
 
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
     if not revocations.signature:
         raise LicenseError("revocation list is not signed")
+    if max_age_seconds is not None:
+        current = now or datetime.now(UTC)
+        age = (current - revocations.issued_at).total_seconds()
+        if age < -60 or age > max_age_seconds:
+            raise LicenseError(f"revocation list is stale (issued_at={revocations.issued_at.isoformat()})")
     key = (
         public_key
         if isinstance(public_key, Ed25519PublicKey)
@@ -206,9 +243,15 @@ def verify_revocation_list(revocations: RevocationList, public_key: Any) -> None
         raise LicenseError(f"revocation list signature mismatch: {exc}") from exc
 
 
-def is_valid(claims: LicenseClaims, now: datetime | None = None) -> bool:
-    """True, если лицензия не просрочена (без учёта grace) — удобный хелпер для контейнера-продажника."""
-    return not claims.is_expired(now)
+def is_valid(
+    claims: LicenseClaims,
+    now: datetime | None = None,
+    revocations: RevocationList | None = None,
+) -> bool:
+    """True, если лицензия не просрочена и (если передан список) не отозвана."""
+    if claims.is_expired(now):
+        return False
+    return revocations is None or not revocations.is_revoked(claims.jti)
 
 
 __all__ = [

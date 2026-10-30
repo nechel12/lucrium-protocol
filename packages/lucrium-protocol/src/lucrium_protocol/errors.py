@@ -5,7 +5,10 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+MAX_ERROR_MESSAGE = 2000
+"""Ограничение ``ErrorObject.message``/``RpcError.message`` на проводе."""
 
 
 class ErrorCode(StrEnum):
@@ -30,8 +33,13 @@ class ErrorObject(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     code: ErrorCode
-    message: str = Field(min_length=1, max_length=2000)
+    message: str = Field(min_length=1, max_length=MAX_ERROR_MESSAGE)
     data: dict[str, Any] | None = None
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def _truncate_message(cls, value: object) -> str:
+        return (str(value) or "error")[:MAX_ERROR_MESSAGE]
 
     def __str__(self) -> str:
         return f"{self.code}: {self.message}"
@@ -46,9 +54,10 @@ class ProtocolError(Exception):
         message: str,
         data: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(f"{code}: {message}")
+        safe_message = (message or "error")[:MAX_ERROR_MESSAGE]
+        super().__init__(f"{code}: {safe_message}")
         self.code = code
-        self.message = message
+        self.message = safe_message
         self.data = data
 
     def to_object(self) -> ErrorObject:
@@ -65,6 +74,7 @@ class ProtocolError(Exception):
 
 
 __all__ = [
+    "MAX_ERROR_MESSAGE",
     "ErrorCode",
     "ErrorObject",
     "ProtocolError",

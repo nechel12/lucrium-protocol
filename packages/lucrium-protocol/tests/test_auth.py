@@ -41,6 +41,9 @@ def test_pairing_tokens_equal() -> None:
     token = generate_pairing_token()
     assert pairing_tokens_equal(token, token)
     assert not pairing_tokens_equal(token, generate_pairing_token())
+    # non-ASCII не должен ронять compare_digest
+    assert not pairing_tokens_equal("токен", "token")
+    assert pairing_tokens_equal("токен", "токен")
 
 
 def test_auth_header_roundtrip() -> None:

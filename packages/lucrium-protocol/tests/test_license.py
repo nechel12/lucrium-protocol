@@ -19,6 +19,7 @@ from lucrium_protocol.license import (
     decode_license,
     decode_license_unverified,
     encode_license,
+    is_valid,
     sign_revocation_list,
     verify_revocation_list,
 )
@@ -47,7 +48,7 @@ def test_encode_decode_roundtrip() -> None:
     private, public = _keypair()
     claims = _claims()
     token = encode_license(claims, private)
-    decoded = decode_license(token, public)
+    decoded = decode_license(token, public, now=NOW)
     assert decoded == claims
     assert decoded.tier == "pro"
     assert decoded.jti == claims.jti
@@ -72,6 +73,39 @@ def test_expiry_and_grace_window() -> None:
     # просрочена дольше grace
     too_late = expires + timedelta(seconds=DEFAULT_OFFLINE_GRACE_SECONDS + 1)
     assert not claims.within_offline_grace(too_late)
+
+
+def test_expired_license_rejected_by_decode() -> None:
+    private, public = _keypair()
+    claims = _claims(expires_at=int((NOW - timedelta(seconds=1)).timestamp()))
+    token = encode_license(claims, private)
+    with pytest.raises(LicenseError, match="expired"):
+        decode_license(token, public, now=NOW)
+    # offline-grace разрешает работу ещё 72 часа
+    decoded = decode_license(token, public, now=NOW, grace_seconds=DEFAULT_OFFLINE_GRACE_SECONDS)
+    assert decoded.is_expired(NOW)
+
+
+def test_wrong_issuer_rejected() -> None:
+    private, public = _keypair()
+    claims = _claims(iss="other-issuer")
+    token = encode_license(claims, private)
+    with pytest.raises(LicenseError, match="issuer"):
+        decode_license(token, public)
+
+
+def test_revocation_list_freshness_and_is_valid() -> None:
+    private, public = _keypair()
+    claims = _claims()
+    revocations = RevocationList(
+        issued_at=NOW - timedelta(days=2),
+        revocations=[RevokedLicense(jti=claims.jti, revoked_at=NOW)],
+    )
+    sign_revocation_list(revocations, private)
+    verify_revocation_list(revocations, public, now=NOW)
+    with pytest.raises(LicenseError, match="stale"):
+        verify_revocation_list(revocations, public, now=NOW, max_age_seconds=3600)
+    assert not is_valid(claims, NOW, revocations)
 
 
 def test_tampered_token_rejected() -> None:

@@ -23,6 +23,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .errors import MAX_ERROR_MESSAGE
 from .events import HubEvent
 from .types import LogLevel
 
@@ -68,8 +69,13 @@ class RpcError(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     code: int
-    message: str = Field(min_length=1, max_length=2000)
+    message: str = Field(min_length=1, max_length=MAX_ERROR_MESSAGE)
     data: Any | None = None
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def _truncate_message(cls, value: object) -> str:
+        return (str(value) or "error")[:MAX_ERROR_MESSAGE]
 
 
 class RpcRequest(BaseModel):
