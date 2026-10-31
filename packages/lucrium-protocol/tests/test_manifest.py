@@ -54,6 +54,7 @@ version = "0.0.1"
     assert m.api == "1"
     assert m.schema_path is None
     assert m.permissions.network is False
+    assert m.permissions.finance is False
     assert m.permissions.accounts == []
 
 
@@ -107,6 +108,14 @@ def test_invalid_platform_in_permissions() -> None:
         parse_manifest_text(
             '[plugin]\nid = "demo-plugin"\nname = "X"\nversion = "1.0.0"\n[permissions]\naccounts = ["steam"]\n'
         )
+
+
+def test_finance_permission_is_opt_in() -> None:
+    m = parse_manifest_text(
+        '[plugin]\nid = "demo-plugin"\nname = "X"\nversion = "1.0.0"\n[permissions]\nfinance = true\n'
+    )
+    assert m.permissions.finance is True
+    assert m.permissions.network is False
 
 
 def test_load_manifest_from_directory(tmp_path) -> None:  # type: ignore[no-untyped-def]

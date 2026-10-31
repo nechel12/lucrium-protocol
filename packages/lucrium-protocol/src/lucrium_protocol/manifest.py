@@ -17,6 +17,7 @@
     [permissions]
     accounts = ["funpay", "playerok"]
     network = true
+    finance = false                # вывод/возвраты/кошельки — только явным opt-in
 
 «Блочность»: панель рендерит форму настроек из ``schema`` автоматически —
 автор плагина не пишет ни строки фронтенда.
@@ -122,6 +123,13 @@ class ManifestPermissions(BaseModel):
     )
     network: bool = Field(
         default=False, description="разрешить ctx.http (прямая сеть из плагина запрещена по умолчанию)"
+    )
+    finance: bool = Field(
+        default=False,
+        description=(
+            "разрешить финансовые вызовы клиента (finance.*, transactions.*, "
+            "orders.refund, deals.cancel); по умолчанию запрещены"
+        ),
     )
 
 

@@ -32,6 +32,7 @@ schema = "config_schema.json"
 [permissions]
 accounts = ["funpay"]     # пусто = все установленные площадки
 network = false           # true → разрешён ctx.http
+finance = false           # true → разрешены finance.*/transactions.*/orders.refund/deals.cancel
 ```
 
 `my_plugin.py`:
@@ -149,6 +150,13 @@ message = await ctx.session.call(
 - Имена методов различаются по площадкам — см.
   [docs/platforms.md](../../../docs/platforms.md). Пример автоответчика
   показывает, как выбрать метод по `event.platform`.
+
+> **Финансовые операции по умолчанию запрещены.** Воркер отклоняет
+> `finance.*`, `transactions.*`, `orders.refund` и `deals.cancel`, пока в
+> манифесте не указано `[permissions] finance = true`. Не запрашивайте это
+> разрешение, если плагину действительно не нужно выводить деньги, менять
+> реквизиты или оформлять возвраты — такие плагины требуют особенно
+> внимательного ревью при публикации в магазине.
 
 В событийном хуке `ctx.session` уже привязан к сессии события. Если плагин
 обслуживает несколько аккаунтов, используйте `ctx.session_for(...)`.
