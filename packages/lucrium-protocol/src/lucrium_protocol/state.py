@@ -11,6 +11,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .manifest import ManifestPermissions
 from .types import AccountCredentials, AccountInput, Capability, Platform, ProxyConfig, SessionStatus, StatusCounts
 
 
@@ -88,6 +89,13 @@ class PluginState(BaseModel):
     has_config_schema: bool = Field(default=False, description="панель рендерит форму настроек, если True")
     config: dict[str, object] = Field(
         default_factory=dict, description="текущий конфиг (без секретов плагина — на усмотрение автора)"
+    )
+    permissions: ManifestPermissions | None = Field(
+        default=None,
+        description=(
+            "разрешения, зафиксированные при установке: панель показывает их пользователю; "
+            "None — запись создана старой версией воркера"
+        ),
     )
     installed_at: datetime
     updated_at: datetime

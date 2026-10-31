@@ -135,6 +135,7 @@ from .license import (
 from .manifest import (
     MANIFEST_FILENAME,
     ManifestError,
+    ManifestPermissions,
     PluginManifest,
     load_manifest,
     parse_manifest_text,
@@ -224,6 +225,7 @@ __all__ = [
     "LogScope",
     "LogWriteParams",
     "ManifestError",
+    "ManifestPermissions",
     "PingParams",
     "PingResult",
     "Platform",

@@ -151,6 +151,10 @@ class InstallPluginParams(BaseModel):
     sha256: str | None = Field(default=None, min_length=64, max_length=64, description="hex, контрольная сумма zip")
     overwrite: bool = False
     auto_start: bool = True
+    ack_permissions: bool = Field(
+        default=False,
+        description="подтверждение пользователя, если переустановка расширяет разрешения",
+    )
 
 
 class UpdatePluginParams(BaseModel):
@@ -161,6 +165,10 @@ class UpdatePluginParams(BaseModel):
     archive_b64: str = Field(max_length=MAX_B64_CHARS)
     sha256: str | None = Field(default=None, min_length=64, max_length=64)
     auto_restart: bool = True
+    ack_permissions: bool = Field(
+        default=False,
+        description="подтверждение пользователя, если новая версия просит больше разрешений",
+    )
 
 
 class RemovePluginParams(BaseModel):
