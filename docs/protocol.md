@@ -18,7 +18,9 @@
   WebSocket; воркер не раскрывает деталей.
 - Токен выдаётся при онбординге (§3.1 спеки) и показывается один раз.
   `rotate_token` отзывает старый и возвращает новый (тоже один раз).
-- TLS обязателен: bearer-токен и `get_state` (с кредами) ходят по одному каналу.
+- TLS обязателен: bearer-токен идёт по тому же каналу, что и команды. Креды
+  площадок в обычный снапшот состояния не включены — их отдаёт только
+  `reveal_credentials`.
 
 ## 2. Envelope
 
@@ -111,13 +113,14 @@
 
 | Команда | Params | Result | Смысл |
 |---|---|---|---|
-| `get_state` | — | `StateWithCredentials` | полный снапшот **включая креды** (канал аутентифицирован) |
+| `get_state` | — | `StateSnapshot` | полный снапшот **без кредов**: статусы, площадки, capability, маски |
+| `reveal_credentials` | `account_id?` | `StateWithCredentials` | явное раскрытие кредов; воркер пишет событие в журнал |
 | `add_account` | `AccountInput` | `AccountRef` | добавить аккаунт; сессия стартует по `start_session` |
 | `update_account` | `account_id` + патч | `AccountRef` | частичное обновление (label/credentials/proxy/clear_proxy) |
 | `remove_account` | `account_id` | `AccountRef` | остановить сессию и удалить аккаунт |
 | `start_session` | `account_id` | `SessionRef` | подключить клиента aiosellers |
 | `stop_session` | `account_id` | `SessionRef` | штатно отключить |
-| `install_plugin` | zip `archive_b64`, `sha256?`, `overwrite`, `auto_start` | `PluginState` | v1: установка zip-архивом |
+| `install_plugin` | zip `archive_b64`, `sha256?`, `overwrite`, `auto_start`, `ack_permissions` | `PluginState` | v1: установка zip-архивом; расширение разрешений требует `ack_permissions` |
 | `update_plugin` | `plugin_id`, zip, `sha256?`, `auto_restart` | `PluginState` | заменить файлы и перезапустить |
 | `remove_plugin` | `plugin_id`, `purge_data` | `PluginRef` | удалить плагин (и его KV) |
 | `set_plugin_config` | `plugin_id`, `config` | `PluginConfigResult` | конфиг из JSON-схемы; воркер валидирует и перезапускает |
@@ -141,7 +144,7 @@
 - `SecretStr` в pydantic маскируется (`"**********"`) даже в JSON — поэтому
   `build_request` и `encode_result` используют `to_wire()`, который раскрывает
   секреты **на проводе**.
-- `get_state` — единственный ответ с кредами (`StateWithCredentials`).
+- `reveal_credentials` — единственный ответ с кредами (`StateWithCredentials`).
 - Событие `state` несёт `StateSnapshot` **без кредов**: broadcast не должен
   размножать секреты по всем подключённым панелям.
 - Логи и `last_error` не содержат секретов; `ProxyConfig.to_url()` вызывается
