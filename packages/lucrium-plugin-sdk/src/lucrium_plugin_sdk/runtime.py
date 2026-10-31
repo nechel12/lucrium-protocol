@@ -4,7 +4,8 @@
 
 1. воркер запускает subprocess плагина (``python -m lucrium_plugin_sdk``),
    передавая ``LUCRIUM_PLUGIN_DIR`` и ``LUCRIUM_PLUGIN_SOCKET``;
-2. рантайм импортирует точку входа из манифеста, валидирует хуки;
+2. рантайм импортирует точку входа из манифеста (только файл внутри каталога
+   плагина), валидирует хуки;
 3. host шлёт ``plugin.start`` (конфиг) → ``on_start``;
 4. далее поток ``plugin.event`` → ``on_event`` (контекст привязан к сессии события);
 5. ``plugin.stop`` → ``on_stop`` → выход.
@@ -17,8 +18,10 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
+import hashlib
+import importlib.util
 import os
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -51,17 +54,91 @@ from .transport import JsonRpcClient, TransportError
 PLUGIN_DIR_ENV = "LUCRIUM_PLUGIN_DIR"
 PLUGIN_SOCKET_ENV = "LUCRIUM_PLUGIN_SOCKET"
 
+# Сегмент dotted-пути точки входа; тот же язык, что у PluginManifest.entry.
+_ENTRY_PART_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _entry_source_file(root: Path, dotted: str) -> Path:
+    """Файл точки входа — только внутри каталога плагина.
+
+    Резолвим ``<root>/<entry>.py`` и ``<root>/<entry>/__init__.py`` сами, а не
+    через ``importlib.import_module``: последний взял бы первый попавшийся
+    установленный модуль, так что ``entry = "lucrium_worker.config"`` из
+    манифеста импортировал бы код воркера (манифест это пропускает — его
+    регулярка проверяет только синтаксис dotted-пути).
+    """
+    if not dotted:
+        raise EntryError("entry must not be empty")
+    parts = dotted.split(".")
+    for part in parts:
+        if not _ENTRY_PART_RE.match(part):
+            raise EntryError(f"entry {dotted!r} is not a module path inside the plugin directory")
+    relative = Path(*parts)
+    module_file = (root / relative).with_suffix(".py")
+    package_file = root / relative / "__init__.py"
+    for candidate in (module_file, package_file):
+        resolved = candidate.resolve()
+        if not resolved.is_relative_to(root):
+            raise EntryError(f"entry {dotted!r} resolves outside the plugin directory: {resolved}")
+    if module_file.is_file() and package_file.is_file():
+        raise EntryError(f"ambiguous entry {dotted!r}: both {dotted}.py and {dotted}/__init__.py exist")
+    for candidate in (module_file, package_file):
+        if candidate.is_file():
+            return candidate
+    raise EntryError(f"entry module {dotted!r} not found inside {root} (tried {dotted}.py, {dotted}/__init__.py)")
+
+
+def _entry_module_name(root: Path, dotted: str) -> str:
+    """Уникальное имя модуля: два плагина с ``entry = "main"`` не затирают друг друга."""
+    digest = hashlib.sha256(f"{root}\x00{dotted}".encode()).hexdigest()[:16]
+    slug = re.sub(r"[^A-Za-z0-9_]+", "_", f"{root.name}_{dotted}".lower()).strip("_")[:40]
+    return f"lucrium_plugin_entry_{slug}_{digest}"
+
+
+def _add_plugin_dir_to_sys_path(root: Path) -> None:
+    """Дописывает каталог плагина в КОНЕЦ ``sys.path`` (не в начало).
+
+    Нужно отложенным импортам соседних файлов плагина (``import helpers``
+    внутри хука). В конец — чтобы stdlib, site-packages и ``lucrium_protocol``
+    разрешались раньше: ``sys.path.insert(0, root)`` давал бы плагину с
+    ``json.py``/``asyncio.py``/``lucrium_protocol/`` подменить их всему процессу
+    плагина, включая отложенные импорты самого рантайма.
+    """
+    directory = str(root)
+    if directory not in sys.path:
+        sys.path.append(directory)
+
 
 def import_entry_module(plugin_dir: Path, dotted: str) -> ModuleType:
-    """Импортирует модуль-точку входа (``manifest.plugin.entry``) из корня плагина."""
-    root = str(plugin_dir.resolve())
-    if root not in sys.path:
-        # sys.path оставляем: модуль точки входа может импортировать соседние файлы плагина
-        sys.path.insert(0, root)
+    """Импортирует модуль-точку входа (``manifest.plugin.entry``) из корня плагина.
+
+    Точка входа обязана лежать файлом внутри директории плагина; импорт
+    выполняется через ``spec_from_file_location`` под уникальным именем, поэтому
+    ни stdlib, ни ``lucrium_protocol``, ни другой плагин подменены быть не могут.
+    """
+    root = Path(plugin_dir).resolve()
+    source = _entry_source_file(root, dotted)
+    name = _entry_module_name(root, dotted)
+    cached = sys.modules.get(name)
+    if cached is not None and getattr(cached, "__file__", None) == str(source):
+        return cached
+
+    _add_plugin_dir_to_sys_path(root)
+    spec = importlib.util.spec_from_file_location(name, source)
+    if spec is None or spec.loader is None:
+        raise EntryError(f"cannot build import spec for {source}")
+    module = importlib.util.module_from_spec(spec)
+    # регистрация до исполнения: на неё опираются относительные импорты пакета-точки входа
+    sys.modules[name] = module
     try:
-        return importlib.import_module(dotted)
+        spec.loader.exec_module(module)
     except Exception as exc:
+        sys.modules.pop(name, None)
         raise EntryError(f"cannot import entry module {dotted!r}: {exc}") from exc
+    except BaseException:
+        sys.modules.pop(name, None)
+        raise
+    return module
 
 
 def load_entry(plugin_dir: str | Path) -> tuple[PluginManifest, PluginEntry]:

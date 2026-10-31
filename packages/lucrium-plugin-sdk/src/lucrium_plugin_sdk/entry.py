@@ -41,7 +41,8 @@ _HOOK_ATTR = "__lucrium_hook__"
 
 
 class EntryError(Exception):
-    """Точка входа плагина невалидна: нет хуков, не async, не тот арity."""
+    """Точка входа невалидна: файла ``entry`` нет в каталоге плагина, путь ведёт
+    наружу каталога, хуков нет, хук не ``async`` или у него не тот arity."""
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,15 +1,20 @@
-"""Тесты рантайма плагина: диспетчеризация plugin.start/event/stop через FakeHost."""
+"""Тесты рантайма плагина: диспетчеризация plugin.start/event/stop через FakeHost
+и импорт модуля-точки входа из каталога плагина."""
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Callable
+import sys
+from collections.abc import Callable, Iterator
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from lucrium_plugin_sdk.entry import PluginEntry, discover_entry
-from lucrium_plugin_sdk.runtime import PluginRuntime, load_entry
+import pytest
+
+from lucrium_plugin_sdk.entry import EntryError, PluginEntry, discover_entry
+from lucrium_plugin_sdk.runtime import PluginRuntime, import_entry_module, load_entry
 from lucrium_plugin_sdk.testing import FakeHost, make_context
 from lucrium_protocol.events import HubEvent
 from lucrium_protocol.ipc import (
@@ -21,6 +26,31 @@ from lucrium_protocol.ipc import (
 from lucrium_protocol.manifest import PluginManifest
 
 ModuleFactory = Callable[..., ModuleType]
+
+MANIFEST_TEMPLATE = '[plugin]\nid = "{plugin_id}"\nname = "T"\nversion = "0.1.0"\nentry = "{entry}"\n'
+
+
+@pytest.fixture
+def import_state() -> Iterator[None]:
+    """Восстанавливает sys.path/sys.modules: тесты импортируют плагины в глобальный импортил."""
+    path = list(sys.path)
+    modules = dict(sys.modules)
+    yield
+    sys.path[:] = path
+    for name in set(sys.modules) - set(modules):
+        sys.modules.pop(name, None)
+
+
+def _plugin_dir(root: Path, *, name: str = "plugin", entry: str = "main", body: str = "") -> Path:
+    """Каталог плагина с манифестом и модулем-точкой входа."""
+    directory = root / name
+    directory.mkdir()
+    (directory / "plugin.toml").write_text(
+        MANIFEST_TEMPLATE.format(plugin_id=name, entry=entry),
+        encoding="utf-8",
+    )
+    (directory / f"{entry}.py").write_text(body, encoding="utf-8")
+    return directory
 
 
 def _entry_and_calls(module_factory: ModuleFactory) -> tuple[PluginEntry, dict[str, Any]]:
@@ -291,21 +321,135 @@ async def test_session_call_carries_session_id(
         await _drain(task)
 
 
-async def test_load_entry_from_directory(tmp_path: Any) -> None:
-    """Манифест + точка входа из реального каталога (импорт модуля main)."""
-    (tmp_path / "plugin.toml").write_text(
-        '[plugin]\nid = "dir-plugin"\nname = "Dir"\nversion = "0.1.0"\nentry = "main"\n',
-        encoding="utf-8",
+async def test_load_entry_from_directory(tmp_path: Any, import_state: None) -> None:
+    """Манифест + точка входа из реального каталога (импорт файла ``main.py``)."""
+    directory = _plugin_dir(
+        tmp_path, name="dir-plugin", body="seen = []\n\nasync def on_start(ctx):\n    seen.append(ctx.plugin_id)\n"
     )
-    (tmp_path / "main.py").write_text(
-        "seen = []\n\nasync def on_start(ctx):\n    seen.append(ctx.plugin_id)\n",
-        encoding="utf-8",
-    )
-    manifest, entry = load_entry(tmp_path)
+    manifest, entry = load_entry(directory)
     assert manifest.id == "dir-plugin"
     assert entry.on_start is not None
 
-    # хук вызывается с контекстом из фейков
+    # хук вызывается с контекстом из фейков; модуль тот же, что у load_entry
+    module = import_entry_module(directory, "main")
     await entry.on_start(make_context("dir-plugin"))  # type: ignore[misc]
-    module = __import__("main")
     assert module.seen == ["dir-plugin"]
+
+
+# --- импорт точки входа: только файлы плагина, без sys.path[0] ----------------
+
+
+def test_entry_is_a_file_inside_the_plugin_dir(tmp_path: Path, import_state: None) -> None:
+    """``entry`` больше не может назвать любой установленный модуль."""
+    directory = _plugin_dir(tmp_path, name="inside-plugin")
+    for dotted in ("lucrium_protocol.manifest", "lucrium_plugin_sdk.runtime", "json"):
+        with pytest.raises(EntryError, match="not found"):
+            import_entry_module(directory, dotted)
+
+
+def test_entry_rejects_paths_outside_the_plugin_dir(tmp_path: Path, import_state: None) -> None:
+    directory = _plugin_dir(tmp_path, name="escape-plugin")
+    for dotted in ("", "..", "..escape", "sub/../outside", ".hidden", "main.", "weird-name"):
+        with pytest.raises(EntryError, match=r"not a module path|must not be empty"):
+            import_entry_module(directory, dotted)
+
+
+def test_plugin_dir_is_appended_not_prepended(tmp_path: Path, import_state: None) -> None:
+    """Каталог плагина в конце sys.path: stdlib и протокол не подменяются."""
+    directory = _plugin_dir(
+        tmp_path,
+        name="shadow-plugin",
+        body=(
+            "import json\n"
+            "from lucrium_protocol.types import Platform\n"
+            "\n"
+            "PLATFORM = Platform.FUNPAY\n"
+            "JSON_FILE = str(json.__file__)\n"
+            "\n"
+            "async def on_start(ctx):\n"
+            "    import zipfile\n"
+            "\n"
+            "    return zipfile.ZIP_DEFLATED\n"
+        ),
+    )
+    for shadow in ("json.py", "asyncio.py", "sitecustomize.py"):
+        (directory / shadow).write_text("raise RuntimeError('тень на stdlib')\n", encoding="utf-8")
+    (directory / "lucrium_protocol").mkdir()
+    (directory / "lucrium_protocol" / "__init__.py").write_text(
+        "raise RuntimeError('тень на lucrium_protocol')\n",
+        encoding="utf-8",
+    )
+
+    module = import_entry_module(directory, "main")
+    resolved = str(directory.resolve())
+    assert module.PLATFORM.value == "funpay"
+    assert Path(module.JSON_FILE).resolve() != (directory / "json.py").resolve()
+    assert (
+        Path(sys.modules["lucrium_protocol"].__file__).resolve()
+        != (directory / "lucrium_protocol" / "__init__.py").resolve()
+    )
+    assert resolved in sys.path
+    assert sys.path[0] != resolved
+    assert sys.path[-1] == resolved
+
+
+def test_entry_can_import_sibling_files(tmp_path: Path, import_state: None) -> None:
+    directory = _plugin_dir(
+        tmp_path, name="sibling-plugin", body="from helpers import MARK\n\nasync def on_start(ctx):\n    assert MARK\n"
+    )
+    (directory / "helpers.py").write_text("MARK = 'helper'\n", encoding="utf-8")
+    assert import_entry_module(directory, "main").MARK == "helper"
+
+
+def test_package_entry_supports_relative_imports(tmp_path: Path, import_state: None) -> None:
+    directory = tmp_path / "package-plugin"
+    directory.mkdir()
+    (directory / "plugin.toml").write_text(
+        MANIFEST_TEMPLATE.format(plugin_id="package-plugin", entry="pkg"), encoding="utf-8"
+    )
+    package = directory / "pkg"
+    package.mkdir()
+    (package / "__init__.py").write_text("from .core import MARK\n", encoding="utf-8")
+    (package / "core.py").write_text("MARK = 'core'\n", encoding="utf-8")
+
+    module = import_entry_module(directory, "pkg")
+    assert module.MARK == "core"
+    assert module.__name__ != "pkg"
+
+
+def test_ambiguous_entry_is_rejected(tmp_path: Path, import_state: None) -> None:
+    directory = _plugin_dir(tmp_path, name="ambiguous-plugin", body="async def on_start(ctx):\n    pass\n")
+    (directory / "main").mkdir()
+    (directory / "main" / "__init__.py").write_text("async def on_start(ctx):\n    pass\n", encoding="utf-8")
+    with pytest.raises(EntryError, match="ambiguous"):
+        import_entry_module(directory, "main")
+
+
+def test_same_entry_name_in_different_plugins_does_not_collide(tmp_path: Path, import_state: None) -> None:
+    first = _plugin_dir(tmp_path, name="first-plugin", body="MARK = 'first'\n")
+    second = _plugin_dir(tmp_path, name="second-plugin", body="MARK = 'second'\n")
+    one = import_entry_module(first, "main")
+    two = import_entry_module(second, "main")
+    assert (one.MARK, two.MARK) == ("first", "second")
+    assert one is not two
+    assert one.__name__ != two.__name__
+    # повторный импорт того же файла — тот же модуль (кэш по имени и пути)
+    assert import_entry_module(first, "main") is one
+
+
+def test_broken_entry_leaves_no_module_behind(tmp_path: Path, import_state: None) -> None:
+    directory = _plugin_dir(tmp_path, name="broken-plugin", body="raise RuntimeError('boom')\n")
+    with pytest.raises(EntryError, match="boom"):
+        import_entry_module(directory, "main")
+    assert not [name for name in sys.modules if name.startswith("lucrium_plugin_entry_")]
+
+
+async def test_manifest_entry_cannot_reach_worker_modules(tmp_path: Path, import_state: None) -> None:
+    directory = tmp_path / "worker-plugin"
+    directory.mkdir()
+    (directory / "plugin.toml").write_text(
+        MANIFEST_TEMPLATE.format(plugin_id="worker-plugin", entry="lucrium_protocol.manifest"),
+        encoding="utf-8",
+    )
+    with pytest.raises(EntryError, match="not found"):
+        load_entry(directory)

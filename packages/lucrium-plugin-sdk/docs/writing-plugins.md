@@ -24,7 +24,7 @@ id = "my-plugin"          # ^[a-z0-9][a-z0-9_-]{1,63}$
 name = "Мой плагин"
 version = "0.1.0"         # semver
 api = "1"
-entry = "my_plugin"       # модуль с хуками (dotted path)
+entry = "my_plugin"       # файл точки входа внутри каталога плагина
 
 [config]
 schema = "config_schema.json"
@@ -34,6 +34,14 @@ accounts = ["funpay"]     # пусто = все установленные пл�
 network = false           # true → разрешён ctx.http
 finance = false           # true → разрешены finance.*/transactions.*/orders.refund/deals.cancel
 ```
+
+`entry` резолвится как файл **внутри** каталога плагина: `my_plugin.py` или
+`my_plugin/__init__.py` (для пакета — с относительными импортами). Имя из
+манифеста не может указать на любой установленный модуль: `entry =
+"lucrium_worker.config"` — ошибка, а не импорт кода воркера. Каталог плагина
+добавляется в **конец** `sys.path`, поэтому соседние файлы плагина импортируются
+и в момент запуска, и отложенно внутри хуков, но `json`, `asyncio` или
+`lucrium_protocol` из каталога плагина stdlib и протокол не подменяют.
 
 `my_plugin.py`:
 
