@@ -114,7 +114,7 @@ class StateSnapshot(BaseModel):
 
 
 class AccountWithCredentials(BaseModel):
-    """Аккаунт с кредами — только в ``get_state``-ответе (панель восстанавливает подключение)."""
+    """Аккаунт с кредами — только в ответе ``reveal_credentials`` по явному запросу."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -123,12 +123,13 @@ class AccountWithCredentials(BaseModel):
 
 
 class StateWithCredentials(BaseModel):
-    """Result ``get_state``: полный снапшот **включая креды аккаунтов**.
+    """Result ``reveal_credentials``: снапшот **включая креды аккаунтов**.
 
-    Событие ``state`` (broadcast) использует :class:`StateSnapshot` — там креды
-    замаскированы (``SecretStr`` → ``"**********"`` даже в JSON). Раскрытие
-    секретов происходит только по явному запросу авторизованной панели
-    (``build_request`` использует :func:`~lucrium_protocol.types.to_wire`).
+    ``get_state`` и событие ``state`` отдают :class:`StateSnapshot` — без
+    секретов. Раскрытие происходит только по явной команде авторизованной панели
+    и пишется в лог воркера; до ``reveal_credentials`` креда уходили в каждом
+    снапшоте, оседали в кэше панели и в истории сообщений (§8: панель не должна
+    хранить важное).
     """
 
     model_config = ConfigDict(extra="forbid")

@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from .errors import ErrorCode, ProtocolError
 from .events import HubEvent
-from .state import PluginState, StateWithCredentials
+from .state import PluginState, StateSnapshot, StateWithCredentials
 from .types import (
     AccountCredentials,
     AccountInput,
@@ -38,6 +38,7 @@ class Command(StrEnum):
     """Полный список команд панели (спека §5)."""
 
     GET_STATE = "get_state"
+    REVEAL_CREDENTIALS = "reveal_credentials"
     ADD_ACCOUNT = "add_account"
     UPDATE_ACCOUNT = "update_account"
     REMOVE_ACCOUNT = "remove_account"
@@ -93,6 +94,15 @@ class GetStateParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     method: Literal["get_state"] = "get_state"
+
+
+class RevealCredentialsParams(BaseModel):
+    """Явный запрос кредов: ``get_state`` их больше не отдаёт (спека §8, §10)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["reveal_credentials"] = "reveal_credentials"
+    account_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class AddAccountParams(BaseModel):
@@ -405,6 +415,7 @@ class PingResult(BaseModel):
 
 COMMAND_PARAMS: dict[str, type[BaseModel]] = {
     Command.GET_STATE: GetStateParams,
+    Command.REVEAL_CREDENTIALS: RevealCredentialsParams,
     Command.ADD_ACCOUNT: AddAccountParams,
     Command.UPDATE_ACCOUNT: UpdateAccountParams,
     Command.REMOVE_ACCOUNT: RemoveAccountParams,
@@ -427,7 +438,8 @@ COMMAND_PARAMS: dict[str, type[BaseModel]] = {
 """``method`` → модель params (payload запроса)."""
 
 COMMAND_RESULTS: dict[str, type[BaseModel]] = {
-    Command.GET_STATE: StateWithCredentials,
+    Command.GET_STATE: StateSnapshot,
+    Command.REVEAL_CREDENTIALS: StateWithCredentials,
     Command.ADD_ACCOUNT: AccountRef,
     Command.UPDATE_ACCOUNT: AccountRef,
     Command.REMOVE_ACCOUNT: AccountRef,
@@ -451,6 +463,7 @@ COMMAND_RESULTS: dict[str, type[BaseModel]] = {
 
 RequestPayloadT = Annotated[
     GetStateParams
+    | RevealCredentialsParams
     | AddAccountParams
     | UpdateAccountParams
     | RemoveAccountParams
@@ -539,6 +552,7 @@ __all__ = [
     "RestartParams",
     "RestartResult",
     "RestartScope",
+    "RevealCredentialsParams",
     "RotateTokenParams",
     "RotateTokenResult",
     "SessionRef",

@@ -39,6 +39,7 @@ from lucrium_protocol import (
     Response,
     RestartParams,
     RestartResult,
+    RevealCredentialsParams,
     RotateTokenParams,
     ServerEvent,
     SessionStatus,
@@ -64,6 +65,7 @@ from lucrium_protocol import (
 
 SAMPLE_PARAMS: dict[Command, BaseModel] = {
     Command.GET_STATE: GetStateParams(),
+    Command.REVEAL_CREDENTIALS: RevealCredentialsParams(),
     Command.ADD_ACCOUNT: AddAccountParams(
         account=AccountInput.model_validate(
             {
@@ -144,19 +146,39 @@ def test_all_commands_have_params_and_results() -> None:
 
 
 def test_response_roundtrip_typed_result(state_with_credentials: StateWithCredentials) -> None:
-    request = build_request(Command.GET_STATE, GetStateParams())
+    """Креды приходят только по ``reveal_credentials``."""
+    request = build_request(Command.REVEAL_CREDENTIALS, RevealCredentialsParams())
     response = build_response(request, state_with_credentials)
     assert response.id == request.id
     assert response.payload.error is None
 
     parsed = parse_envelope(response.model_dump_json())
     assert isinstance(parsed, Response)
-    result = response_result(parsed, Command.GET_STATE)
+    result = response_result(parsed, Command.REVEAL_CREDENTIALS)
     assert isinstance(result, StateWithCredentials)
     assert result.revision == state_with_credentials.revision
-    # креды раскрыты для панели: канал аутентифицирован, панель восстанавливает сессии
+    # креды раскрыты для панели: канал аутентифицирован, запрос явный
     creds = result.credentials_by_account()["acc-1"]
     assert creds.secret_value() == "gk-live-123"
+
+
+def test_get_state_roundtrip_carries_no_credentials(state_with_credentials: StateWithCredentials) -> None:
+    request = build_request(Command.GET_STATE, GetStateParams())
+    snapshot = StateSnapshot.model_validate(
+        {
+            "revision": state_with_credentials.revision,
+            "generated_at": state_with_credentials.generated_at,
+            "status": state_with_credentials.status,
+            "accounts": [],
+            "plugins": [],
+        }
+    )
+    response = build_response(request, snapshot)
+    parsed = parse_envelope(response.model_dump_json())
+    assert isinstance(parsed, Response)
+    result = response_result(parsed, Command.GET_STATE)
+    assert isinstance(result, StateSnapshot)
+    assert "golden_key" not in response.model_dump_json()
 
 
 def test_state_event_masks_credentials(state_with_credentials: StateWithCredentials) -> None:
