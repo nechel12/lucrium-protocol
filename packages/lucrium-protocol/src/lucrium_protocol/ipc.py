@@ -29,6 +29,16 @@ from .types import LogLevel
 
 JSONRPC_VERSION = "2.0"
 
+MAX_HTTP_HEADERS = 32
+MAX_HTTP_HEADER_NAME_CHARS = 128
+MAX_HTTP_HEADER_VALUE_CHARS = 1024
+MAX_HTTP_BODY_B64_CHARS = 11 * 1024 * 1024
+
+
+def _has_control_chars(value: str) -> bool:
+    return any(ord(char) < 0x20 or ord(char) == 0x7F for char in value)
+
+
 # --- host → плагин -----------------------------------------------------------
 PLUGIN_START = "plugin.start"
 PLUGIN_EVENT = "plugin.event"
@@ -237,15 +247,32 @@ class SessionCallResult(BaseModel):
 
 
 class HttpRequestParams(BaseModel):
-    """HTTP-запрос от лица воркера — разрешён только при ``permissions.network = true``."""
+    """HTTP-запрос от лица воркера — разрешён только при ``permissions.network = true``.
+
+    Границы здесь не косметика: запрос исполняет воркер, и плагин получает
+    доступ к сети *его* руками. Egress-политика (запрет loopback, приватных и
+    link-local адресов) на стороне host; здесь — разборчивый ввод.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] = "GET"
     url: str = Field(min_length=1, max_length=4096)
-    headers: dict[str, str] = Field(default_factory=dict)
-    body_b64: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict, max_length=MAX_HTTP_HEADERS)
+    body_b64: str | None = Field(default=None, max_length=MAX_HTTP_BODY_B64_CHARS)
     timeout_seconds: float = Field(default=20.0, gt=0, le=120)
+
+    @field_validator("headers")
+    @classmethod
+    def _printable_headers(cls, v: dict[str, str]) -> dict[str, str]:
+        for name, value in v.items():
+            if not name or len(name) > MAX_HTTP_HEADER_NAME_CHARS:
+                raise ValueError(f"header name must be 1-{MAX_HTTP_HEADER_NAME_CHARS} chars")
+            if len(value) > MAX_HTTP_HEADER_VALUE_CHARS:
+                raise ValueError(f"header {name!r} value is too long")
+            if _has_control_chars(name) or _has_control_chars(value):
+                raise ValueError(f"header {name!r} must not contain control characters")
+        return v
 
     @field_validator("url")
     @classmethod
@@ -255,6 +282,9 @@ class HttpRequestParams(BaseModel):
             raise ValueError("url must be absolute http(s)")
         if " " in v:
             raise ValueError("url must not contain spaces")
+        if _has_control_chars(v):
+            # \r\n внутри url — инъекция заголовка в запрос, который делает воркер
+            raise ValueError("url must not contain control characters")
         return v
 
 
@@ -262,8 +292,8 @@ class HttpResponseResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: int = Field(ge=100, le=599)
-    headers: dict[str, str] = Field(default_factory=dict)
-    body_b64: str = ""
+    headers: dict[str, str] = Field(default_factory=dict, max_length=MAX_HTTP_HEADERS)
+    body_b64: str = Field(default="", max_length=MAX_HTTP_BODY_B64_CHARS)
 
 
 __all__ = [
@@ -271,6 +301,10 @@ __all__ = [
     "HTTP_REQUEST",
     "JSONRPC_VERSION",
     "LOG_WRITE",
+    "MAX_HTTP_BODY_B64_CHARS",
+    "MAX_HTTP_HEADERS",
+    "MAX_HTTP_HEADER_NAME_CHARS",
+    "MAX_HTTP_HEADER_VALUE_CHARS",
     "PLUGIN_EVENT",
     "PLUGIN_START",
     "PLUGIN_STOP",

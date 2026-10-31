@@ -20,6 +20,7 @@ from lucrium_protocol import (
     StopParams,
     StorageSetParams,
 )
+from lucrium_protocol.ipc import MAX_HTTP_BODY_B64_CHARS
 
 
 def test_request_roundtrip() -> None:
@@ -94,6 +95,21 @@ def test_http_request_params() -> None:
         HttpRequestParams(method="TRACE", url="https://x")  # type: ignore[arg-type]
     with pytest.raises(ValidationError):
         HttpRequestParams(url="not-a-url-without-scheme")
+
+
+def test_http_request_params_are_bounded() -> None:
+    """Плагин не должен мочь передать воркеру бесконечное или инъективное тело."""
+    with pytest.raises(ValidationError):
+        HttpRequestParams(url="https://example.com/a\r\nX-Injected: 1")
+    with pytest.raises(ValidationError):
+        HttpRequestParams(url="https://example.com/", headers={"X-A": "v\r\nY: z"})
+    with pytest.raises(ValidationError):
+        HttpRequestParams(url="https://example.com/", headers={f"X-{i}": "v" for i in range(40)})
+    with pytest.raises(ValidationError):
+        HttpRequestParams(url="https://example.com/", headers={"X" * 200: "v"})
+    with pytest.raises(ValidationError):
+        HttpRequestParams(url="https://example.com/", body_b64="A" * (MAX_HTTP_BODY_B64_CHARS + 4))
+    assert HttpRequestParams(url="https://example.com/", headers={"X-A": "v"}, body_b64="AAAA").method == "GET"
 
 
 def test_storage_set_accepts_arbitrary_json() -> None:
