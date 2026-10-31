@@ -89,7 +89,14 @@ from .envelope import (
     response_error,
     response_result,
 )
-from .errors import MAX_ERROR_DATA_BYTES, MAX_ERROR_MESSAGE, ErrorCode, ErrorObject, ProtocolError
+from .errors import (
+    MAX_ERROR_DATA_BYTES,
+    MAX_ERROR_MESSAGE,
+    ErrorCode,
+    ErrorObject,
+    ProtocolError,
+    redact_exception_text,
+)
 from .events import (
     EVENT_DATA,
     CommandResult,
@@ -317,6 +324,7 @@ __all__ = [
     "parse_envelope",
     "parse_manifest_text",
     "parse_request",
+    "redact_exception_text",
     "response_error",
     "response_result",
     "sign_revocation_list",

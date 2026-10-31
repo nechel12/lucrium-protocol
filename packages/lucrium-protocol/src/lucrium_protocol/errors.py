@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from enum import StrEnum
 from typing import Any
 
@@ -12,6 +13,21 @@ MAX_ERROR_MESSAGE = 2000
 """Ограничение ``ErrorObject.message``/``RpcError.message`` на проводе."""
 MAX_ERROR_DATA_BYTES = 64 * 1024
 """Максимальный сериализованный размер ``ErrorObject.data``."""
+
+_INPUT_ECHO_RE = re.compile(r"input_value=.*")
+
+
+def redact_exception_text(exc: BaseException) -> str:
+    """Текст исключения, пригодный для лога и для провода.
+
+    Pydantic печатает в ``str(ValidationError)`` значение поля
+    (``input_value=...``) — для модели кредов это утечка секрета в worker.log,
+    в лог-буфер панели и в ответ ``get_logs`` (спека §10: креды не логируются).
+    Значения полей вырезываются целиком до конца строки, класс и суть ошибки
+    остаются.
+    """
+    text = _INPUT_ECHO_RE.sub("input_value=<redacted>", str(exc))
+    return f"{type(exc).__name__}: {text[:MAX_ERROR_MESSAGE]}"
 
 
 class ErrorCode(StrEnum):
@@ -86,7 +102,7 @@ class ProtocolError(Exception):
     @classmethod
     def internal(cls, exc: Exception) -> ProtocolError:
         """Оборачивает произвольное исключение в ошибку протокола (без утечки traceback наружу)."""
-        return cls(ErrorCode.INTERNAL, f"{type(exc).__name__}: {exc}")
+        return cls(ErrorCode.INTERNAL, redact_exception_text(exc))
 
 
 __all__ = [
@@ -95,4 +111,5 @@ __all__ = [
     "ErrorCode",
     "ErrorObject",
     "ProtocolError",
+    "redact_exception_text",
 ]

@@ -223,6 +223,20 @@ def test_error_response_wraps_generic_exception() -> None:
     assert response.id == "some-id"
 
 
+def test_error_message_never_carries_field_values() -> None:
+    """str(ValidationError) печатает input_value — для кредов это утечка секрета."""
+    secret = "gk-42"
+    with pytest.raises(ValidationError) as excinfo:
+        # platform=playerok без access_token — ошибка уровня модели, pydantic
+        # печатает входной словарь целиком
+        AccountCredentials.model_validate({"platform": "playerok", "golden_key": secret})
+    assert secret in str(excinfo.value)  # pydantic сам по себе небезопасен
+    wrapped = build_error_response("some-id", excinfo.value)
+    assert wrapped.payload.error is not None
+    assert secret not in wrapped.payload.error.message
+    assert "ValidationError" in wrapped.payload.error.message
+
+
 def test_error_response_truncates_long_message() -> None:
     response = build_error_response("some-id", RuntimeError("x" * 5000))
     assert response.payload.error is not None
