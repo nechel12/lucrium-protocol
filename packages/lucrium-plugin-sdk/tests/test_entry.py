@@ -120,6 +120,20 @@ def test_load_entry_validates(module_factory: ModuleFactory) -> None:
         load_entry(module_factory())
 
 
+def test_imported_decorators_are_not_hooks() -> None:
+    """``from lucrium_plugin_sdk import on_event`` без использования не ломает плагин."""
+
+    async def on_start(ctx: Any) -> None:
+        return None
+
+    module = ModuleType("main_with_unused_decorators")
+    module.__dict__.update({"on_start": on_start, "on_event": on_event, "on_stop": on_stop})
+    entry = discover_entry(module).ensure_valid()
+    assert entry.on_start is on_start
+    assert entry.on_event is None
+    assert entry.on_stop is None
+
+
 def test_hooks_are_coroutines(module_factory: ModuleFactory) -> None:
     """smoke: валидные хуки — действительно coroutine-функции."""
 

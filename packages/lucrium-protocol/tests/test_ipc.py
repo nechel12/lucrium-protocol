@@ -20,7 +20,7 @@ from lucrium_protocol import (
     StopParams,
     StorageSetParams,
 )
-from lucrium_protocol.ipc import MAX_HTTP_BODY_B64_CHARS
+from lucrium_protocol.ipc import MAX_HTTP_BODY_B64_CHARS, MAX_LOG_FIELDS_BYTES
 
 
 def test_request_roundtrip() -> None:
@@ -110,6 +110,15 @@ def test_http_request_params_are_bounded() -> None:
     with pytest.raises(ValidationError):
         HttpRequestParams(url="https://example.com/", body_b64="A" * (MAX_HTTP_BODY_B64_CHARS + 4))
     assert HttpRequestParams(url="https://example.com/", headers={"X-A": "v"}, body_b64="AAAA").method == "GET"
+
+
+def test_log_fields_are_bounded() -> None:
+    """ctx.log не должен превращаться в переносчик данных через IPC."""
+    with pytest.raises(ValidationError):
+        LogWriteParams(message="m", fields={f"k{i}": "v" for i in range(40)})
+    with pytest.raises(ValidationError):
+        LogWriteParams(message="m", fields={"blob": "x" * (MAX_LOG_FIELDS_BYTES + 1)})
+    assert LogWriteParams(message="m", fields={"chat_id": 1}).fields == {"chat_id": 1}
 
 
 def test_storage_set_accepts_arbitrary_json() -> None:

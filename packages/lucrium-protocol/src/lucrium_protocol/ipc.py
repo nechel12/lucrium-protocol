@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -33,6 +34,8 @@ MAX_HTTP_HEADERS = 32
 MAX_HTTP_HEADER_NAME_CHARS = 128
 MAX_HTTP_HEADER_VALUE_CHARS = 1024
 MAX_HTTP_BODY_B64_CHARS = 11 * 1024 * 1024
+MAX_LOG_FIELDS = 32
+MAX_LOG_FIELDS_BYTES = 4096
 
 
 def _has_control_chars(value: str) -> bool:
@@ -215,11 +218,25 @@ class StorageListResult(BaseModel):
 
 
 class LogWriteParams(BaseModel):
+    """``ctx.log``: сообщение плюсstructured-поля; размер ограничен, чтобы лог
+    плагина не превращался в хранилище данных (и не рвал фрейм IPC)."""
+
     model_config = ConfigDict(extra="forbid")
 
     level: LogLevel = LogLevel.INFO
     message: str = Field(max_length=8192)
-    fields: dict[str, Any] = Field(default_factory=dict)
+    fields: dict[str, Any] = Field(default_factory=dict, max_length=MAX_LOG_FIELDS)
+
+    @field_validator("fields")
+    @classmethod
+    def _bounded_fields(cls, v: dict[str, Any]) -> dict[str, Any]:
+        try:
+            encoded = json.dumps(v, ensure_ascii=False, default=str)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("log fields must be JSON-serializable") from exc
+        if len(encoded.encode("utf-8")) > MAX_LOG_FIELDS_BYTES:
+            raise ValueError(f"log fields exceed {MAX_LOG_FIELDS_BYTES} bytes")
+        return v
 
 
 class SessionCallParams(BaseModel):
@@ -305,6 +322,8 @@ __all__ = [
     "MAX_HTTP_HEADERS",
     "MAX_HTTP_HEADER_NAME_CHARS",
     "MAX_HTTP_HEADER_VALUE_CHARS",
+    "MAX_LOG_FIELDS",
+    "MAX_LOG_FIELDS_BYTES",
     "PLUGIN_EVENT",
     "PLUGIN_START",
     "PLUGIN_STOP",

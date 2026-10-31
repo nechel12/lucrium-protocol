@@ -133,7 +133,10 @@ def discover_entry(module: ModuleType | object) -> PluginEntry:
         kind = getattr(value, _HOOK_ATTR, None)
         if isinstance(kind, str) and kind in marked:
             marked[kind].append(value)
-        if name in ("on_start", "on_event", "on_stop"):
+        if name in ("on_start", "on_event", "on_stop") and value not in (on_start, on_event, on_stop):
+            # сам декоратор попадает в namespace модуля при
+            # ``from lucrium_plugin_sdk import on_event`` даже если не используется;
+            # он не async-функция и был бы принят за хук
             named[name.removeprefix("on_")].append(value)
 
     def pick(kind: str) -> AnyHook | None:
