@@ -59,7 +59,7 @@ from .runtime import (
 )
 from .transport import JsonRpcClient, RpcRemoteError, TransportError
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 __all__ = [
     "PLUGIN_DIR_ENV",

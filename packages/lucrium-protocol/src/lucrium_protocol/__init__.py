@@ -167,7 +167,7 @@ from .types import (
 )
 from .version import PLUGIN_API_VERSION, PROTOCOL_VERSION, SUPPORTED_PLUGIN_API_VERSIONS
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 __all__ = [
     "COMMAND_PARAMS",
