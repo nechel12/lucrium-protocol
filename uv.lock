@@ -355,7 +355,7 @@ wheels = [
 
 [[package]]
 name = "lucrium-plugin-sdk"
-version = "0.1.0"
+version = "0.1.2"
 source = { editable = "packages/lucrium-plugin-sdk" }
 dependencies = [
     { name = "lucrium-protocol" },
@@ -366,7 +366,7 @@ requires-dist = [{ name = "lucrium-protocol", editable = "packages/lucrium-proto
 
 [[package]]
 name = "lucrium-protocol"
-version = "0.1.0"
+version = "0.1.2"
 source = { editable = "packages/lucrium-protocol" }
 dependencies = [
     { name = "pydantic" },

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lucrium-plugin-sdk"
-version = "0.1.0"
+version = "0.1.2"
 description = "Lucrium Plugin SDK: PluginContext, контракт on_start/on_event/on_stop, рантайм и инструменты тестирования плагинов."
 readme = "README.md"
 license = "Apache-2.0"
